@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Portfolio Parent Updater</title>
+    <!--  (c) 2016 CA Technologies.  All Rights Reserved. -->
+    <!--  Build Date: Tue Jul 19 2016 07:35:07 GMT-0600 (MDT) -->
+    
+    <script type="text/javascript">
+        var APP_BUILD_DATE = "Tue Jul 19 2016 07:35:07 GMT-0600 (MDT)";
+        var BUILDER = "kcorkan";
+        var CHECKSUM = 4232079608;
+    </script>
+    
+    <script type="text/javascript" src="/apps/2.1/sdk.js"></script>
+
+    <script type="text/javascript">
+        Rally.onReady(function() {
+             
+/**
+ * A link that pops up a version dialog box
+ */
+
+Ext.define('Rally.technicalservices.InfoLink',{
+    extend: 'Rally.ui.dialog.Dialog',
+    alias: 'widget.tsinfolink',
+    
+    /**
+     * @cfg {String} informationHtml
+     * Additional text to be displayed on the popup dialog (for exmaple,
+     * to add a description of the app's use or functionality)
+     */
+    informationHtml: null,
+    
+    /**
+     * 
+     * cfg {String} title
+     * The title for the dialog box
+     */
+    title: "Build Information",
+    
+    defaults: { padding: 5, margin: 5 },
+
+    closable: true,
+     
+    draggable: true,
+
+    autoShow: true,
+   
+    width: 350,
+    
+    informationalConfig: null,
+    
+    items: [{xtype:'container', itemId:'information' }],
+    
+    initComponent: function() {
+        var id = Ext.id(this);
+        this.title =  "<span class='icon-help'> </span>" + this.title;
+        this.callParent(arguments);
+    },
+    
+    _generateChecksum: function(string){
+        var chk = 0x12345678,
+            i;
+        string = string.replace(/var CHECKSUM = .*;/,"");
+        string = string.replace(/var BUILDER = .*;/,"");
+        string = string.replace(/\s/g,"");  //Remove all whitespace from the string.
+       
+        for (i = 0; i < string.length; i++) {
+            chk += (string.charCodeAt(i) * i);
+        }
+   
+        return chk;
+    },
+    
+    _checkChecksum: function(container) {
+        var deferred = Ext.create('Deft.Deferred');
+        var me = this;
+        
+        Ext.Ajax.request({
+            url: document.URL,
+            params: {
+                id: 1
+            },
+            success: function (response) {
+                text = response.responseText;
+                if ( CHECKSUM ) {
+                    var stored_checksum = me._generateChecksum(text);
+                    if ( CHECKSUM !== stored_checksum ) {
+                        deferred.resolve(false);
+                        return;
+                    }
+                }
+                deferred.resolve(true);
+            }
+        });
+        
+        return deferred.promise;
+    },
+    
+    _addToContainer: function(container){
+        var config = Ext.apply({
+            xtype:'container',
+            height: 200,
+            overflowY: true
+        }, this.informationalConfig);
+        
+        container.add(config);
+    },
+    
+    afterRender: function() {
+        var app = Rally.getApp();
+        
+        if ( !Ext.isEmpty( this.informationalConfig ) ) {
+            var container = this.down('#information');
+            this._addToContainer(container);
+            
+        }
+        
+        if (! app.isExternal() ) {
+            this._checkChecksum(app).then({
+                scope: this,
+                success: function(result){
+                    if ( !result ) {
+                        this.addDocked({
+                            xtype:'container',
+                            cls: 'build-info',
+                            dock: 'bottom',
+                            padding: 2,
+                            html:'<span class="icon-warning"> </span>Checksums do not match'
+                        });
+                    }
+                },
+                failure: function(msg){
+                    console.log("oops:",msg);
+                }
+            });
+        } else {
+            this.addDocked({
+                xtype:'container',
+                cls: 'build-info',
+                padding: 2,
+                dock: 'bottom',
+                html:'... Running externally'
+            });
+        }
+        this.callParent(arguments);
+    },
+    
+    beforeRender: function() {
+        var me = this;
+        this.callParent(arguments);
+
+        if (this.informationHtml) {
+            this.addDocked({
+                xtype: 'component',
+                componentCls: 'intro-panel',
+                padding: 2,
+                html: this.informationHtml,
+                doc: 'top'
+            });
+        }
+        
+        this.addDocked({
+            xtype:'container',
+            cls: 'build-info',
+            padding: 2,
+            dock:'bottom',
+            html:"This app was created by the CA AC Technical Services Team."
+        });
+        
+        if ( APP_BUILD_DATE ) {
+            this.addDocked({
+                xtype:'container',
+                cls: 'build-info',
+                padding: 2,
+                dock: 'bottom',
+                html: Ext.String.format("Build date/time: {0} ({1})",
+                    APP_BUILD_DATE,
+                    BUILDER)
+            });
+        }
+    }
+});
+
+/*
+ */
+Ext.define('Rally.technicalservices.Logger',{
+    constructor: function(config){
+        Ext.apply(this,config);
+    },
+    log: function(args){
+        var timestamp = "[ " + Ext.util.Format.date(new Date(), "Y-m-d H:i:s.u") + " ]";
+        //var output_args = arguments;
+        //output_args.unshift( [ "[ " + timestamp + " ]" ] );
+        //output_args = Ext.Array.push(output_args,arguments);
+        
+        var output_args = [];
+        output_args = Ext.Array.push(output_args,[timestamp]);
+        output_args = Ext.Array.push(output_args, Ext.Array.slice(arguments,0));
+
+        window.console && console.log.apply(console,output_args);
+    }
+
+});
+
+Ext.define('CArABU.technicalservices.UpdateParentMatchMenuItem', {
+    alias: 'widget.updateparentmatchbulkrecordmenuitem',
+    extend: 'Rally.ui.menu.bulk.MenuItem',
+
+    config: {
+        onBeforeAction: function(){
+//            console.log('onbeforeaction');
+        },
+
+        /**
+         * @cfg {Function} onActionComplete a function called when the specified menu item action has completed
+         * @param Rally.data.wsapi.Model[] onActionComplete.successfulRecords any successfully modified records
+         * @param Rally.data.wsapi.Model[] onActionComplete.unsuccessfulRecords any records which failed to be updated
+         */
+        onActionComplete: function(){
+            console.log('onActionComplete');
+        },
+
+        text: 'Update Parent to Matched Portfolio Item...',
+
+        handler: function () {
+            var records = this.records,
+                parentMatchesToFind = [],
+                matchField = this.matchField,
+                parentMatchField = this.parentMatchField;
+
+            Ext.Array.each(records, function(r){
+                if (!Ext.Array.contains(parentMatchesToFind, r.get(matchField))){
+                    parentMatchesToFind.push(r.get(matchField));
+                }
+            });
+
+            var parentFilters = _.map(parentMatchesToFind, function(r){
+                return {
+                    property: parentMatchField,
+                    value: r
+                };
+            });
+            parentFilters = Rally.data.wsapi.Filter.or(parentFilters);
+
+            Ext.create('Rally.data.wsapi.Store',{
+                model: this.parentType,
+                fetch: ['ObjectID',this.parentMatchField],
+                context: {project: null},
+                filters: parentFilters,
+                limit: 'Infinity'
+            }).load({
+                callback: function(parentRecords, operation){
+                    if (operation.wasSuccessful()){
+                        var hash = {};
+                        Ext.Array.each(parentRecords, function(r){
+                            hash[r.get(parentMatchField)] = r.get('_ref');
+                        });
+
+                        var updatedRecords = [];
+                        Ext.Array.each(records, function(r){
+                            var match = r.get(matchField);
+                            if (hash[match]){
+                                r.set('Parent', hash[match]);
+                                updatedRecords.push(r);
+                            }
+                        });
+
+                        var bulkUpdateStore = Ext.create('Rally.data.wsapi.batch.Store', {
+                            data: updatedRecords
+                        });
+
+                        bulkUpdateStore.sync({
+                            success: function(batch) {
+                               console.log('batch successful!!', batch, updatedRecords);
+                            },
+                            failure: function(){
+                                console.log('bulkUpdateStore failed')
+                            }
+                        });
+
+
+                    } else {
+
+                    }
+                }
+            });
+
+        },
+        predicate: function (records) {
+            var matchField = this.matchField;
+            return _.every(records, function (record) {
+                return record.get(matchField) && record.get(matchField).length > 0;
+            });
+        }
+    }
+});
+Ext.define("parent-updater-by-field", {
+    extend: 'Rally.app.App',
+    componentCls: 'app',
+    logger: new Rally.technicalservices.Logger(),
+    defaults: { margin: 10 },
+    items: [
+        {xtype:'container',itemId:'message_box',tpl:'Hello, <tpl>{_refObjectName}</tpl>'},
+        {xtype:'container',itemId:'display_box'}
+    ],
+
+    config: {
+        defaultSettings: {
+            childMatchField: "c_ExternalID",
+            parentMatchField: "c_ExternalID",
+            childType: "PortfolioItem/Feature",
+            parentType: "PortfolioItem/Initiative"
+        }
+    },
+
+    integrationHeaders : {
+        name : "parent-updater-by-field"
+    },
+                        
+    launch: function() {
+        this.buildStore();
+    },
+
+    buildStore: function(){
+        this.down('#display_box').removeAll();
+
+        Ext.create('Rally.data.wsapi.TreeStoreBuilder').build({
+            models: this.getModelNames(),
+            enableHierarchy: true,
+            fetch: this.getChildFetchList(),
+            filters: this.getChildFilters()
+        }).then({
+            success: this.buildGrid,
+            scope: this,
+            failure: this.showError
+        });
+
+    },
+    showError: function(operation){
+        this.logger.log('showError', operation);
+    },
+    buildGrid: function(store){
+        this.logger.log('buildGrid', store);
+
+        this.down('#display_box').add({
+            xtype: 'rallygridboard',
+            context: this.getContext(),
+            modelNames: this.getModelNames(),
+            toggleState: 'grid',
+            plugins: [
+                this.getFilterPlugin(),
+                this.getFieldPickerPlugin()
+            ],
+            gridConfig: {
+                store: store,
+                enableRanking: false,
+                enableBulkEdit: true,
+                shouldShowRowActionsMenu: false,
+                storeConfig: {
+                    filters: this.getChildFilters()
+                },
+                bulkEditConfig: {
+                    items: [{
+                        xtype: 'updateparentmatchbulkrecordmenuitem',
+                        matchField: this.getChildMatchField(),
+                        parentMatchField: this.getParentMatchField(),
+                        parentType: this.getParentType()
+                    }]
+                },
+                columnCfgs: [
+                    'FormattedID',
+                    'Name'
+                ]
+            },
+            height: this.getHeight()
+        });
+    },
+    getFilterPlugin: function(){
+        return {
+            ptype: 'rallygridboardinlinefiltercontrol',
+            inlineFilterButtonConfig: {
+                stateful: true,
+                stateId: this.getContext().getScopedStateId('ctd-filters'),
+                modelNames: this.getModelNames(),
+                inlineFilterPanelConfig: {
+                    quickFilterPanelConfig: {
+                        defaultFields: [
+                            'ArtifactSearch',
+                            'Owner',
+                            'ModelType'
+                        ]
+                    }
+                }
+            }
+        };
+    },
+    getFieldPickerPlugin: function(){
+        return {
+            ptype: 'rallygridboardfieldpicker',
+            headerPosition: 'left',
+            modelNames: this.getModelNames(),
+            stateful: true,
+            stateId: this.getContext().getScopedStateId('ctd-columns-1')
+        };
+    },
+    getChildFetchList: function(){
+        return ['FormattedID','Name','Parent',this.getChildMatchField(), this.parentMatchField];
+    },
+    getChildFilters: function(){
+        return [{
+            property: this.getSetting('childMatchField'),
+            operator: "!=",
+            value: ""
+        }];
+    },
+    getChildMatchField: function(){
+        return this.getSetting('childMatchField');
+    },
+    getParentMatchField: function(){
+        return this.getSetting('parentMatchField');
+    },
+    getParentType: function(){
+        return this.getSetting('parentType');
+    },
+    getModelNames: function(){
+        return [this.getSetting('childType')];
+    },
+    getSettingsFields: function(){
+        var settings = this.getSettings();
+
+        return [{
+            xtype: 'rallyfieldcombobox',
+            model: settings.parentType,
+            name: 'parentMatchField',
+            fieldLabel: "Parent Match Field"
+        },{
+            xtype: 'rallyfieldcombobox',
+            model: settings.childType,
+            name: 'childMatchField',
+            fieldLabel: "Child Match Field"
+        }];
+    },
+    
+    getOptions: function() {
+        return [
+            {
+                text: 'About...',
+                handler: this._launchInfo,
+                scope: this
+            }
+        ];
+    },
+    
+    _launchInfo: function() {
+        if ( this.about_dialog ) { this.about_dialog.destroy(); }
+        this.about_dialog = Ext.create('Rally.technicalservices.InfoLink',{});
+    },
+    
+    isExternal: function(){
+        return typeof(this.getAppId()) == 'undefined';
+    },
+    
+    //onSettingsUpdate:  Override
+    onSettingsUpdate: function (settings){
+        this.logger.log('onSettingsUpdate',settings);
+        // Ext.apply(this, settings);
+        this.launch();
+    }
+});
+
+            
+               Rally.launchApp('parent-updater-by-field', {
+                   name: 'Portfolio Parent Updater'
+               });
+        });
+    </script>
+    
+    <style type="text/css">
+
+.app {
+}
+.tsinfolink {
+    position:absolute;
+    right:0px;
+    width: 14px;
+    height: 14px;
+    border-radius: 7px;
+    text-align: center;
+    color: white;
+    background: #C0C0C0;
+    border-style: solid;
+    border-width: 1px;
+    margin-top: 25px;
+    margin-right: 5px;
+    cursor: pointer;
+}
+    </style>
+
+</head>
+<body></body>
+</html>

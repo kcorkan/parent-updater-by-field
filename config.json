@@ -1,0 +1,5 @@
+{
+    "name": "Portfolio Parent Updater",
+    "sdk": "2.1",
+    "className": "parent-updater-by-field"
+}
